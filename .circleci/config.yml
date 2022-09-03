@@ -9,6 +9,20 @@ jobs:
       - checkout
       - run: echo "This is a test step"
 
+  oast:
+    machine: true
+    steps:
+      - checkout
+
+      - run:
+          command: docker run --rm -v $(pwd):/src -w /src hysnsec/bundle-audit check --format json --output bundle-audit-output.json
+          when: on_fail             # Even if the job fails, continue to the next stages
+
+      - store_artifacts:
+          path: bundle-audit-output.json
+          destination: bundle-audit
+          when: always
+
   integration:
     steps:
       - checkout
@@ -30,9 +44,12 @@ workflows:
       - test:
           requires:
             - build 
-      - integration:
+      - oast:
           requires:
             - test
+      - integration:
+          requires:
+            - oast
       - prod:
           type: approval
           requires:
