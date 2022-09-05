@@ -1,17 +1,28 @@
 jobs:
-  oast:
+  build:
+    steps:
+      - checkout
+      - run: echo "This is a build step"    # similar to "script" in GitLab
+
+  test:
+    steps:
+      - checkout
+      - run: echo "This is a test step"
+
+  chelsea:
     machine: true
     steps:
       - checkout
 
-      - run:
-          command: docker run --rm -v $(pwd):/src -w /src hysnsec/bundle-audit check --format json --output bundle-audit-output.json
-          when: on_fail             # Even if the job fails, continue to the next stages
+      - run: 
+          command: |
+            gem install chelsea
+            chelsea -f Gemfile.lock -t json | tail -n1 > chelsea-output.json      # tail -n1 to remove chelsea banner
+          when: on_fail               # Even if the job fails, continue to the next stages
 
       - store_artifacts:
-          path: bundle-audit-output.json
-          destination: bundle-audit
-          when: always
+          path: chelsea-output.json
+          destination: chelsea-artifact
 
   integration:
     steps:
@@ -20,6 +31,7 @@ jobs:
           command: |
             echo "This is an integration step"
             exit 1
+          when: always                    # Even if the job fails, continue to the next stages
 
   prod:
     steps:
@@ -30,10 +42,16 @@ workflows:
   version: 2
   rails:
     jobs:
-      - oast
+      - build
+      - test:
+          requires:
+            - build
+      - chelsea:
+          requires:
+            - test
       - integration:
           requires:
-            - oast
+            - chelsea
       - prod:
           type: approval
           requires:
